@@ -3,7 +3,6 @@ type PrismaClient = typeof _prismaType
 // lib/classes/auth-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam CotaService e PagamentoService (usuário autenticado)
 
-import { Role } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { AuditoriaService } from './auditoria-service'
@@ -73,7 +72,7 @@ export class AuthService {
         senhaHash,
         lgpdAceito:    true,
         lgpdAceitoEm:  new Date(),
-        role:          Role.PARTICIPANTE,
+        role:          "PARTICIPANTE" as any,
       },
     })
 

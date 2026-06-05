@@ -3,7 +3,6 @@ type PrismaClient = typeof _prismaType
 // lib/classes/sorteio-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam CotaService, LotteryService e AdminDashboard
 
-import { type Sorteio, StatusSorteio } from '@prisma/client'
 import { AuditoriaService } from './auditoria-service'
 import { createHash } from 'crypto'
 
@@ -32,7 +31,7 @@ export class SorteioService {
     this.auditoria = auditoria
   }
 
-  async criar(data: CriarSorteioDTO, adminId: string): Promise<Sorteio> {
+  async criar(data: CriarSorteioDTO, adminId: string): Promise<any> {
     // Validação de compliance — sorteio sem certificado não é criado
     if (!data.certificadoSpaMf || data.certificadoSpaMf.trim() === '') {
       throw new Error('Certificado de Autorização SPA/MF é obrigatório.')
@@ -46,7 +45,7 @@ export class SorteioService {
         slug,
         valorCota: data.valorCota,
         premioValor: data.premioValor,
-        status: StatusSorteio.RASCUNHO,
+        status: "RASCUNHO" as any,
       },
     })
 
@@ -62,16 +61,16 @@ export class SorteioService {
     return sorteio
   }
 
-  async ativar(sorteioId: string, adminId: string): Promise<Sorteio> {
+  async ativar(sorteioId: string, adminId: string): Promise<any> {
     const sorteio = await this.buscarPorId(sorteioId)
 
-    if (sorteio.status !== StatusSorteio.RASCUNHO) {
+    if (sorteio.status !== "RASCUNHO" as any) {
       throw new Error('Apenas sorteios em rascunho podem ser ativados.')
     }
 
     const atualizado = await this.db.sorteio.update({
       where: { id: sorteioId },
-      data: { status: StatusSorteio.ATIVO },
+      data: { status: "ATIVO" as any },
     })
 
     await this.auditoria.registrar({
@@ -102,7 +101,7 @@ export class SorteioService {
         baseCongelada: true,
         baseCongeladaEm: new Date(),
         baseHashSha256: hash,
-        status: StatusSorteio.AGUARDANDO_SORTEIO,
+        status: "AGUARDANDO_SORTEIO" as any,
       },
     })
 
@@ -118,18 +117,18 @@ export class SorteioService {
     return hash
   }
 
-  async buscarAtivos(): Promise<Sorteio[]> {
+  async buscarAtivos(): Promise<any[]> {
     return this.db.sorteio.findMany({
-      where: { status: StatusSorteio.ATIVO },
+      where: { status: "ATIVO" as any },
       orderBy: { dataApuracao: 'asc' },
     })
   }
 
-  async buscarPorSlug(slug: string): Promise<Sorteio | null> {
+  async buscarPorSlug(slug: string): Promise<any> {
     return this.db.sorteio.findUnique({ where: { slug } })
   }
 
-  async buscarPorId(id: string): Promise<Sorteio> {
+  async buscarPorId(id: string): Promise<any> {
     const sorteio = await this.db.sorteio.findUnique({ where: { id } })
     if (!sorteio) throw new Error(`Sorteio ${id} não encontrado.`)
     return sorteio

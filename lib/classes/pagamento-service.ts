@@ -3,7 +3,6 @@ type PrismaClient = typeof _prismaType
 // lib/classes/pagamento-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam CotaService (confirmar) e NotificacaoService (trigger)
 
-import { StatusPagamento } from '@prisma/client'
 import { AuditoriaService } from './auditoria-service'
 
 const ASAAS_BASE_URL = process.env.ASAAS_ENV === 'production'
@@ -66,7 +65,7 @@ export class PagamentoService {
       data: {
         usuarioId:     dto.usuarioId,
         valor:         dto.valor,
-        status:        StatusPagamento.PENDENTE,
+        status:        "PENDENTE" as any,
         provedor:      'asaas',
         provedorId:    cobranca.id,
         qrCodePayload: qrCode.payload,
@@ -109,12 +108,12 @@ export class PagamentoService {
       return
     }
 
-    if (pagamento.status === StatusPagamento.PAGO) return // idempotência
+    if (pagamento.status === "PAGO" as any) return // idempotência
 
     await this.db.pagamento.update({
       where: { id: pagamento.id },
       data: {
-        status:         StatusPagamento.PAGO,
+        status:         "PAGO" as any,
         paidAt:         new Date(),
         webhookPayload: payload as any,
       },
@@ -139,14 +138,14 @@ export class PagamentoService {
 
     // Expirar automaticamente se vencido
     if (
-      pagamento.status === StatusPagamento.PENDENTE &&
+      pagamento.status === "PENDENTE" as any &&
       pagamento.expiresAt < new Date()
     ) {
       await this.db.pagamento.update({
         where: { id: pagamentoId },
-        data: { status: StatusPagamento.EXPIRADO },
+        data: { status: "EXPIRADO" as any },
       })
-      return StatusPagamento.EXPIRADO
+      return "EXPIRADO" as any
     }
 
     return pagamento.status

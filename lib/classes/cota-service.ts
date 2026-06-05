@@ -3,7 +3,7 @@ type PrismaClient = typeof _prismaType
 // lib/classes/cota-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam PagamentoService, SorteioService e NotificacaoService
 
-import { type Cota, StatusCota } from '@prisma/client'
+
 import { AuditoriaService } from './auditoria-service'
 
 const RESERVA_MINUTOS = 15
@@ -30,7 +30,7 @@ export class CotaService {
     const lote = Array.from({ length: total }, (_, i) => ({
       sorteioId,
       numero: i + 1,
-      status: StatusCota.DISPONIVEL,
+      status: "DISPONIVEL" as any,
     }))
 
     await this.db.cota.createMany({ data: lote })
@@ -46,7 +46,7 @@ export class CotaService {
     await this.expirarReservas()
 
     const disponiveis = await this.db.cota.findMany({
-      where: { sorteioId: dto.sorteioId, status: StatusCota.DISPONIVEL },
+      where: { sorteioId: dto.sorteioId, status: "DISPONIVEL" as any },
       take: dto.quantidade,
       orderBy: { numero: 'asc' },
     })
@@ -63,7 +63,7 @@ export class CotaService {
     await this.db.cota.updateMany({
       where: { id: { in: ids } },
       data: {
-        status: StatusCota.RESERVADA,
+        status: "RESERVADA" as any,
         usuarioId: dto.usuarioId,
         reservadaEm: new Date(),
         reservaExpiraEm: expiraEm,
@@ -92,7 +92,7 @@ export class CotaService {
     await this.db.cota.updateMany({
       where: { id: { in: cotaIds } },
       data: {
-        status: StatusCota.PAGA,
+        status: "PAGA" as any,
         pagamentoId,
         reservaExpiraEm: null,
       },
@@ -117,7 +117,7 @@ export class CotaService {
     await this.db.cota.updateMany({
       where: { id: { in: cotaIds } },
       data: {
-        status: StatusCota.DISPONIVEL,
+        status: "DISPONIVEL" as any,
         usuarioId: null,
         reservadaEm: null,
         reservaExpiraEm: null,
@@ -130,11 +130,11 @@ export class CotaService {
   async expirarReservas(): Promise<number> {
     const resultado = await this.db.cota.updateMany({
       where: {
-        status: StatusCota.RESERVADA,
+        status: "RESERVADA" as any,
         reservaExpiraEm: { lt: new Date() },
       },
       data: {
-        status: StatusCota.DISPONIVEL,
+        status: "DISPONIVEL" as any,
         usuarioId: null,
         reservadaEm: null,
         reservaExpiraEm: null,
@@ -148,7 +148,7 @@ export class CotaService {
     return this.db.cota.findMany({
       where: {
         usuarioId,
-        status: StatusCota.PAGA,
+        status: "PAGA" as any,
         ...(sorteioId && { sorteioId }),
       },
       orderBy: { numero: 'asc' },
@@ -157,7 +157,7 @@ export class CotaService {
 
   async contarDisponiveis(sorteioId: string): Promise<number> {
     return this.db.cota.count({
-      where: { sorteioId, status: StatusCota.DISPONIVEL },
+      where: { sorteioId, status: "DISPONIVEL" as any },
     })
   }
 }
