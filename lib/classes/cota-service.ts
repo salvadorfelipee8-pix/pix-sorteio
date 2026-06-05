@@ -37,7 +37,7 @@ export class CotaService {
   }
 
   // Reserva cotas aleatórias disponíveis para o usuário
-  async reservar(dto: ReservarCotasDTO): Promise<Cota[]> {
+  async reservar(dto: ReservarCotasDTO): Promise<any[]> {
     if (dto.quantidade > MAX_COTAS_POR_COMPRA) {
       throw new Error(`Máximo de ${MAX_COTAS_POR_COMPRA} cotas por compra.`)
     }
@@ -144,7 +144,7 @@ export class CotaService {
     return resultado.count
   }
 
-  async buscarPorUsuario(usuarioId: string, sorteioId?: string): Promise<Cota[]> {
+  async buscarPorUsuario(usuarioId: string, sorteioId?: string): Promise<any[]> {
     return this.db.cota.findMany({
       where: {
         usuarioId,
