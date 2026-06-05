@@ -54,7 +54,7 @@ export class AuditoriaService {
     const logs = await this.buscarPorSorteio(sorteioId)
 
     const header = 'timestamp,usuario,acao,entidade,entidadeId,ip,hash\n'
-    const rows = logs.map(l =>
+    const rows = logs.map((l: any) =>
       [
         l.criadoEm.toISOString(),
         l.usuario?.email ?? 'sistema',
