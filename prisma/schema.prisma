@@ -1,0 +1,183 @@
+// prisma/schema.prisma
+// SorteioMax — Schema do banco de dados
+// Banco: PostgreSQL (Supabase gratuito)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── USUÁRIO ───────────────────────────────────────────────
+model Usuario {
+  id          String   @id @default(cuid())
+  nome        String
+  email       String   @unique
+  emailVerificado DateTime?
+  cpf         String   @unique  // armazenado criptografado
+  telefone    String?
+  dataNascimento DateTime?
+  senhaHash   String?
+  role        Role     @default(PARTICIPANTE)
+  ativo       Boolean  @default(true)
+  lgpdAceito  Boolean  @default(false)
+  lgpdAceitoEm DateTime?
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  cotas       Cota[]
+  pagamentos  Pagamento[]
+  logs        LogAuditoria[]
+
+  @@map("usuarios")
+}
+
+enum Role {
+  PARTICIPANTE
+  ADMIN
+  SUPER_ADMIN
+}
+
+// ─── SORTEIO ───────────────────────────────────────────────
+model Sorteio {
+  id                  String        @id @default(cuid())
+  slug                String        @unique
+  titulo              String
+  descricao           String?
+  imagemUrl           String?
+  valorCota           Decimal       @db.Decimal(10,2)
+  totalCotas          Int
+  cotasVendidas       Int           @default(0)
+  status              StatusSorteio @default(RASCUNHO)
+  dataApuracao        DateTime
+  dataLoteria         DateTime      // data do sorteio da Loteria Federal
+  premioDescricao     String
+  premioValor         Decimal       @db.Decimal(10,2)
+
+  // Compliance legal — obrigatórios
+  certificadoSpaMf    String        // Ex: LTP-PRC-2024/00901
+  cnpjPromotora       String
+  regulamentoUrl      String?
+  dataAutorizacao     DateTime?
+
+  // Motor de sorteio
+  loteriaSerie        String?       // 1o, 2o, 3o, 4o, 5o prêmio
+  loteriaResultado    String?       // número sorteado pela Caixa
+  cotaVencedora       Int?
+  usuarioVencedor     String?
+
+  // Auditoria de base
+  baseCongelada       Boolean       @default(false)
+  baseCongeladaEm     DateTime?
+  baseHashSha256      String?       // hash da lista de cotas antes do sorteio
+
+  criadoEm            DateTime      @default(now())
+  atualizadoEm        DateTime      @updatedAt
+
+  cotas               Cota[]
+  logs                LogAuditoria[]
+
+  @@map("sorteios")
+}
+
+enum StatusSorteio {
+  RASCUNHO
+  ATIVO
+  ESGOTADO
+  AGUARDANDO_SORTEIO
+  FINALIZADO
+  CANCELADO
+}
+
+// ─── COTA ──────────────────────────────────────────────────
+model Cota {
+  id          String     @id @default(cuid())
+  numero      Int        // número sequencial da cota
+  sorteioId   String
+  usuarioId   String?
+  status      StatusCota @default(DISPONIVEL)
+  reservadaEm DateTime?
+  reservaExpiraEm DateTime?
+  pagamentoId String?    @unique
+  criadoEm   DateTime   @default(now())
+
+  sorteio    Sorteio    @relation(fields: [sorteioId], references: [id])
+  usuario    Usuario?   @relation(fields: [usuarioId], references: [id])
+  pagamento  Pagamento? @relation(fields: [pagamentoId], references: [id])
+
+  @@unique([sorteioId, numero])
+  @@map("cotas")
+}
+
+enum StatusCota {
+  DISPONIVEL
+  RESERVADA
+  PAGA
+  EXPIRADA
+}
+
+// ─── PAGAMENTO ─────────────────────────────────────────────
+model Pagamento {
+  id              String          @id @default(cuid())
+  usuarioId       String
+  valor           Decimal         @db.Decimal(10,2)
+  status          StatusPagamento @default(PENDENTE)
+  provedor        String          @default("asaas")  // asaas | efi
+  provedorId      String?         @unique             // ID externo (Asaas)
+  qrCodePayload   String?         // payload PIX copia-e-cola
+  qrCodeImageUrl  String?
+  expiresAt       DateTime
+  paidAt          DateTime?
+  webhookPayload  Json?           // payload bruto do webhook
+  tentativas      Int             @default(0)
+  criadoEm        DateTime        @default(now())
+  atualizadoEm    DateTime        @updatedAt
+
+  usuario         Usuario         @relation(fields: [usuarioId], references: [id])
+  cota            Cota?
+
+  @@map("pagamentos")
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PAGO
+  EXPIRADO
+  CANCELADO
+  REEMBOLSADO
+}
+
+// ─── LOG DE AUDITORIA (imutável — INSERT only) ─────────────
+model LogAuditoria {
+  id          String   @id @default(cuid())
+  usuarioId   String?
+  sorteioId   String?
+  acao        String   // ex: "COTA_RESERVADA", "PAGAMENTO_CONFIRMADO"
+  entidade    String   // ex: "Cota", "Pagamento"
+  entidadeId  String?
+  payload     Json?    // dados relevantes da ação
+  ipAddress   String?
+  userAgent   String?
+  hashEstado  String?  // SHA-256 do estado antes da ação
+  criadoEm   DateTime @default(now())
+
+  usuario     Usuario?  @relation(fields: [usuarioId], references: [id])
+  sorteio     Sorteio?  @relation(fields: [sorteioId], references: [id])
+
+  @@map("logs_auditoria")
+}
+
+// ─── CONFIGURAÇÃO DO SISTEMA ───────────────────────────────
+model Configuracao {
+  id    String @id @default(cuid())
+  chave String @unique
+  valor String
+  descricao String?
+  atualizadoEm DateTime @updatedAt
+
+  @@map("configuracoes")
+}
