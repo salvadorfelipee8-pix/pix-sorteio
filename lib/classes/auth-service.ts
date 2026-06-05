@@ -1,7 +1,8 @@
 // lib/classes/auth-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam CotaService e PagamentoService (usuário autenticado)
 
-import { PrismaClient, Role } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
+import { Role } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { AuditoriaService } from './auditoria-service'

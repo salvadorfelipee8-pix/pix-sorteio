@@ -1,7 +1,8 @@
 // lib/classes/sorteio-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam CotaService, LotteryService e AdminDashboard
 
-import { PrismaClient, Sorteio, StatusSorteio } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
+import { type Sorteio, StatusSorteio } from '@prisma/client'
 import { AuditoriaService } from './auditoria-service'
 import { createHash } from 'crypto'
 

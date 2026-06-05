@@ -1,7 +1,7 @@
 // lib/classes/auditoria-service.ts
 // ⚠️ IMPACTO: Chamado por TODOS os outros serviços — nunca remover chamadas de auditoria
 
-import { PrismaClient } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
 import { createHash } from 'crypto'
 
 export interface RegistrarAuditoriaDTO {

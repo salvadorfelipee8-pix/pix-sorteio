@@ -1,7 +1,8 @@
 // lib/classes/pagamento-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam CotaService (confirmar) e NotificacaoService (trigger)
 
-import { PrismaClient, StatusPagamento } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
+import { StatusPagamento } from '@prisma/client'
 import { AuditoriaService } from './auditoria-service'
 
 const ASAAS_BASE_URL = process.env.ASAAS_ENV === 'production'

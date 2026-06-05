@@ -1,7 +1,8 @@
 // lib/classes/cota-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam PagamentoService, SorteioService e NotificacaoService
 
-import { PrismaClient, Cota, StatusCota } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
+import { type Cota, StatusCota } from '@prisma/client'
 import { AuditoriaService } from './auditoria-service'
 
 const RESERVA_MINUTOS = 15
