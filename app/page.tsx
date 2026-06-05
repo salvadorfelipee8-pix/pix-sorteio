@@ -40,7 +40,7 @@ export default async function HomePage() {
 
         {sorteios.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sorteios.map((s, i) => (
+            {sorteios.map((s: any, i: number) => (
               <div
                 key={s.id}
                 className="animate-slide-up"
