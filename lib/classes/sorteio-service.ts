@@ -1,7 +1,8 @@
+import { prisma as _prismaType } from '@/lib/prisma'
+type PrismaClient = typeof _prismaType
 // lib/classes/sorteio-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam CotaService, LotteryService e AdminDashboard
 
-import type { PrismaClient } from '@prisma/client'
 import { type Sorteio, StatusSorteio } from '@prisma/client'
 import { AuditoriaService } from './auditoria-service'
 import { createHash } from 'crypto'

@@ -1,7 +1,8 @@
+import { prisma as _prismaType } from '@/lib/prisma'
+type PrismaClient = typeof _prismaType
 // lib/classes/auditoria-service.ts
 // ⚠️ IMPACTO: Chamado por TODOS os outros serviços — nunca remover chamadas de auditoria
 
-import type { PrismaClient } from '@prisma/client'
 import { createHash } from 'crypto'
 
 export interface RegistrarAuditoriaDTO {

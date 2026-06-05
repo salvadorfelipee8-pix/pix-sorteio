@@ -1,7 +1,8 @@
+import { prisma as _prismaType } from '@/lib/prisma'
+type PrismaClient = typeof _prismaType
 // lib/classes/cota-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam PagamentoService, SorteioService e NotificacaoService
 
-import type { PrismaClient } from '@prisma/client'
 import { type Cota, StatusCota } from '@prisma/client'
 import { AuditoriaService } from './auditoria-service'
 

@@ -1,7 +1,8 @@
+import { prisma as _prismaType } from '@/lib/prisma'
+type PrismaClient = typeof _prismaType
 // lib/classes/auth-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam CotaService e PagamentoService (usuário autenticado)
 
-import type { PrismaClient } from '@prisma/client'
 import { Role } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
