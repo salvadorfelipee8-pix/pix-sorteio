@@ -58,7 +58,7 @@ export class CotaService {
     }
 
     const expiraEm = new Date(Date.now() + RESERVA_MINUTOS * 60 * 1000)
-    const ids = disponiveis.map((c) => c.id)
+    const ids = disponiveis.map((c: any) => c.id)
 
     await this.db.cota.updateMany({
       where: { id: { in: ids } },
@@ -77,7 +77,7 @@ export class CotaService {
       entidade: 'Cota',
       payload: {
         quantidade: dto.quantidade,
-        numeros: disponiveis.map((c) => c.numero),
+        numeros: disponiveis.map((c: any) => c.numero),
         expiraEm,
       },
       ipAddress: dto.ipAddress,
