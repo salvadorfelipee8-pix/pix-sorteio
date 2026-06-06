@@ -128,7 +128,7 @@ export class PagamentoService {
     })
   }
 
-  async verificarStatus(pagamentoId: string): Promise<StatusPagamento> {
+  async verificarStatus(pagamentoId: string): Promise<any> {
     const pagamento = await this.db.pagamento.findUnique({
       where: { id: pagamentoId },
       select: { status: true, expiresAt: true },
@@ -238,3 +238,4 @@ export interface AsaasWebhookPayload {
     paymentDate: string
   }
 }
+
