@@ -1,13 +1,11 @@
 // middleware.ts  (raiz do projeto)
 // SorteioMax — Proteção de rotas admin via JWT cookie
-// IMPACTO: Afeta TODAS as rotas /admin/* e /api/admin/*
 
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const ADMIN_ROUTES = ['/admin']
-const ADMIN_API_ROUTES = ['/api/admin']
 const LOGIN_PAGE = '/admin/login'
+const PUBLIC_PATHS = ['/admin/login', '/api/admin/auth']
 
 function getSecret(): Uint8Array {
   const secret = process.env.ADMIN_JWT_SECRET ?? 'fallback-dev-secret-change-in-prod'
@@ -26,15 +24,15 @@ async function verifyAdminToken(token: string): Promise<boolean> {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  const isAdminRoute = ADMIN_ROUTES.some(r => pathname.startsWith(r))
-  const isAdminApi = ADMIN_API_ROUTES.some(r => pathname.startsWith(r))
+  const isAdminRoute = pathname.startsWith('/admin')
+  const isAdminApi = pathname.startsWith('/api/admin')
 
   if (!isAdminRoute && !isAdminApi) {
     return NextResponse.next()
   }
 
-  // Página de login é sempre acessível
-  if (pathname === LOGIN_PAGE) {
+  // Rotas públicas — sem autenticação
+  if (PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p))) {
     return NextResponse.next()
   }
 
