@@ -1,59 +1,91 @@
 // app/api/pagamentos/webhook/route.ts
-// ⚠️ IMPACTO: Este endpoint aciona CotaService e NotificacaoService
+// SorteioMax — Webhook Asaas: confirma pagamento + cotas + envia email
+// IMPACTO: PagamentoService → CotaService → NotificacaoService → AuditoriaService
 
 import { NextRequest, NextResponse } from 'next/server'
 import { criarContainer } from '@/lib/container'
-import { createHmac }     from 'crypto'
 
 export async function POST(req: NextRequest) {
   try {
     const body      = await req.text()
     const signature = req.headers.get('asaas-access-token') ?? ''
 
-    // Verificar autenticidade do webhook
-    if (!verificarAssinatura(body, signature)) {
+    if (!verificarAssinatura(signature)) {
       console.warn('[Webhook] Assinatura inválida')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const payload = JSON.parse(body)
 
-    const { pagamento, cota } = criarContainer()
+    if (payload.event !== 'PAYMENT_RECEIVED') {
+      return NextResponse.json({ received: true })
+    }
 
-    // Processar confirmação de pagamento
+    // Uma única instância do container por request — sem duplicação
+    const { pagamento, cota, notificacao, prisma } = criarContainer()
+
+    // 1. Atualizar status do pagamento
     await pagamento.processarWebhook(payload)
 
-    // Se pagamento confirmado → confirmar cotas
-    if (payload.event === 'PAYMENT_RECEIVED') {
-      const pg = await pagamento.verificarStatus(payload.payment.id)
+    // 2. Buscar pagamento com dados do usuário e sorteio
+    const pgRecord = await prisma.pagamento.findUnique({
+      where: { provedorId: payload.payment.id },
+      include: {
+        cota: {
+          include: {
+            sorteio: { select: { id: true, titulo: true, slug: true, dataApuracao: true } }
+          }
+        },
+        usuario: { select: { id: true, nome: true, email: true } }
+      }
+    })
 
-      if (pg === 'PAGO') {
-        // Buscar cotas reservadas para este pagamento
-        const { prisma } = criarContainer()
-        const pgRecord = await prisma.pagamento.findUnique({
-          where: { provedorId: payload.payment.id },
-          include: { cota: true },
+    if (!pgRecord) {
+      console.error('[Webhook] Pagamento não encontrado:', payload.payment.id)
+      return NextResponse.json({ received: true })
+    }
+
+    // 3. Confirmar cota (idempotente)
+    if (pgRecord.cota && pgRecord.status === 'PAGO' as any) {
+      await cota.confirmar([pgRecord.cota.id], pgRecord.id)
+
+      // 4. Buscar todos os números de cotas do usuário neste sorteio
+      const sorteioId = pgRecord.cota.sorteioId
+      const cotasUsuario = await prisma.cota.findMany({
+        where: {
+          usuarioId: pgRecord.usuarioId,
+          sorteioId,
+          status: 'PAGA' as any
+        },
+        select: { numero: true },
+        orderBy: { numero: 'asc' }
+      })
+
+      const sorteio = pgRecord.cota.sorteio
+
+      // 5. Enviar email de confirmação
+      if (pgRecord.usuario?.email && sorteio) {
+        await notificacao.enviarConfirmacaoCompra({
+          email: pgRecord.usuario.email,
+          nome: pgRecord.usuario.nome,
+          tituloSorteio: sorteio.titulo,
+          numerosCotas: cotasUsuario.map((c: any) => c.numero),
+          valorTotal: Number(pgRecord.valor),
+          dataApuracao: sorteio.dataApuracao,
+          slugSorteio: sorteio.slug
         })
-
-        if (pgRecord?.cota) {
-          await cota.confirmar([pgRecord.cota.id], pgRecord.id)
-        }
-
-        // TODO: disparar NotificacaoService (Fase 3)
       }
     }
 
     return NextResponse.json({ received: true })
-
-  } catch (err) {
+  } catch (err: any) {
     console.error('[Webhook PIX]', err)
-    // Retornar 200 para evitar reenvios do Asaas
+    // Sempre 200 para evitar reenvios do Asaas
     return NextResponse.json({ received: true })
   }
 }
 
-function verificarAssinatura(body: string, token: string): boolean {
-  // Asaas usa token estático — em produção verificar HMAC
+function verificarAssinatura(token: string): boolean {
   const esperado = process.env.ASAAS_WEBHOOK_SECRET ?? ''
   return token === esperado || process.env.ASAAS_ENV === 'sandbox'
 }

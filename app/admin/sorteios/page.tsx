@@ -1,18 +1,12 @@
 'use client'
 // app/admin/sorteios/page.tsx
-// SorteioMax — Listagem de sorteios com ações: editar, ativar, congelar
+// SorteioMax — Listagem de sorteios admin (atualizado Fase 4: botão realizar sorteio)
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
-  Plus,
-  Pencil,
-  Users,
-  Lock,
-  Loader2,
-  RefreshCw,
-  CheckCircle2,
-  AlertTriangle
+  Plus, Pencil, Users, Lock, Loader2,
+  RefreshCw, CheckCircle2, AlertTriangle, Trophy
 } from 'lucide-react'
 
 interface Sorteio {
@@ -31,21 +25,21 @@ interface Sorteio {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  RASCUNHO: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
-  ATIVO: 'bg-[#00FFA3]/10 text-[#00FFA3] border-[#00FFA3]/30',
-  ESGOTADO: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+  RASCUNHO:           'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
+  ATIVO:              'bg-[#00FFA3]/10 text-[#00FFA3] border-[#00FFA3]/30',
+  ESGOTADO:           'bg-blue-500/10 text-blue-400 border-blue-500/30',
   AGUARDANDO_SORTEIO: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
-  FINALIZADO: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-  CANCELADO: 'bg-red-500/10 text-red-400 border-red-500/30'
+  FINALIZADO:         'bg-purple-500/10 text-purple-400 border-purple-500/30',
+  CANCELADO:          'bg-red-500/10 text-red-400 border-red-500/30'
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  RASCUNHO: 'Rascunho',
-  ATIVO: 'Ativo',
-  ESGOTADO: 'Esgotado',
+  RASCUNHO:           'Rascunho',
+  ATIVO:              'Ativo',
+  ESGOTADO:           'Esgotado',
   AGUARDANDO_SORTEIO: 'Aguardando',
-  FINALIZADO: 'Finalizado',
-  CANCELADO: 'Cancelado'
+  FINALIZADO:         'Finalizado',
+  CANCELADO:          'Cancelado'
 }
 
 export default function AdminSorteiosPage() {
@@ -113,54 +107,34 @@ export default function AdminSorteiosPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast */}
       {toast && (
-        <div
-          className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl border shadow-xl text-sm font-medium transition-all ${
-            toast.type === 'success'
-              ? 'bg-[#00FFA3]/10 border-[#00FFA3]/40 text-[#00FFA3]'
-              : 'bg-red-500/10 border-red-500/40 text-red-400'
-          }`}
-        >
+        <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl border shadow-xl text-sm font-medium transition-all ${toast.type === 'success' ? 'bg-[#00FFA3]/10 border-[#00FFA3]/40 text-[#00FFA3]' : 'bg-red-500/10 border-red-500/40 text-red-400'}`}>
           {toast.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
           {toast.msg}
         </div>
       )}
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-white text-2xl font-bold">Sorteios</h1>
           <p className="text-zinc-500 text-sm mt-1">{sorteios.length} sorteio(s) cadastrado(s)</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={carregar}
-            className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
-          >
+          <button onClick={carregar} className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors">
             <RefreshCw size={18} />
           </button>
-          <Link
-            href="/admin/sorteios/novo"
-            className="flex items-center gap-2 bg-[#FFD700] hover:bg-[#FFD700]/90 text-black font-bold px-4 py-2 rounded-lg text-sm transition-all"
-          >
-            <Plus size={16} />
-            Novo Sorteio
+          <Link href="/admin/sorteios/novo" className="flex items-center gap-2 bg-[#FFD700] hover:bg-[#FFD700]/90 text-black font-bold px-4 py-2 rounded-lg text-sm transition-all">
+            <Plus size={16} /> Novo Sorteio
           </Link>
         </div>
       </div>
 
-      {/* Tabela */}
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="animate-spin text-[#FFD700]" size={28} />
-        </div>
+        <div className="flex justify-center py-16"><Loader2 className="animate-spin text-[#FFD700]" size={28} /></div>
       ) : sorteios.length === 0 ? (
         <div className="bg-[#111111] border border-zinc-800 rounded-xl p-16 text-center">
           <p className="text-zinc-500">Nenhum sorteio cadastrado ainda.</p>
-          <Link href="/admin/sorteios/novo" className="text-[#FFD700] hover:underline text-sm mt-2 inline-block">
-            Criar primeiro sorteio →
-          </Link>
+          <Link href="/admin/sorteios/novo" className="text-[#FFD700] hover:underline text-sm mt-2 inline-block">Criar primeiro sorteio →</Link>
         </div>
       ) : (
         <div className="bg-[#111111] border border-zinc-800 rounded-xl overflow-hidden">
@@ -192,24 +166,18 @@ export default function AdminSorteiosPage() {
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <div>
-                          <p className="text-white">{s.cotasVendidas}/{s.totalCotas}</p>
-                          <div className="h-1 bg-zinc-800 rounded-full mt-1 w-20">
-                            <div className="h-full bg-[#FFD700] rounded-full" style={{ width: `${pct}%` }} />
-                          </div>
+                        <p className="text-white">{s.cotasVendidas}/{s.totalCotas}</p>
+                        <div className="h-1 bg-zinc-800 rounded-full mt-1 w-20">
+                          <div className="h-full bg-[#FFD700] rounded-full" style={{ width: `${pct}%` }} />
                         </div>
                       </td>
                       <td className="px-4 py-4 text-white">{fmt(s.valorCota)}</td>
-                      <td className="px-4 py-4 text-zinc-400 text-xs">
-                        {new Date(s.dataApuracao).toLocaleDateString('pt-BR')}
-                      </td>
+                      <td className="px-4 py-4 text-zinc-400 text-xs">{new Date(s.dataApuracao).toLocaleDateString('pt-BR')}</td>
                       <td className="px-4 py-4">
                         {s.baseCongelada ? (
                           <div className="flex items-center gap-1.5 text-[#00FFA3] text-xs">
                             <Lock size={12} />
-                            <span className="font-mono" title={s.baseHashSha256 ?? ''}>
-                              {s.baseHashSha256?.slice(0, 8)}…
-                            </span>
+                            <span className="font-mono" title={s.baseHashSha256 ?? ''}>{s.baseHashSha256?.slice(0, 8)}…</span>
                           </div>
                         ) : (
                           <span className="text-zinc-600 text-xs">Aberta</span>
@@ -217,44 +185,31 @@ export default function AdminSorteiosPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          {/* Ativar (apenas rascunho) */}
                           {s.status === 'RASCUNHO' && (
-                            <button
-                              onClick={() => ativarSorteio(s.id)}
-                              disabled={ativandoId === s.id}
-                              className="text-xs px-3 py-1.5 rounded bg-[#00FFA3]/10 border border-[#00FFA3]/30 text-[#00FFA3] hover:bg-[#00FFA3]/20 transition-colors disabled:opacity-50"
-                            >
+                            <button onClick={() => ativarSorteio(s.id)} disabled={ativandoId === s.id}
+                              className="text-xs px-3 py-1.5 rounded bg-[#00FFA3]/10 border border-[#00FFA3]/30 text-[#00FFA3] hover:bg-[#00FFA3]/20 transition-colors disabled:opacity-50">
                               {ativandoId === s.id ? <Loader2 size={12} className="animate-spin" /> : 'Ativar'}
                             </button>
                           )}
-
-                          {/* Congelar base (apenas ativo/esgotado) */}
                           {(s.status === 'ATIVO' || s.status === 'ESGOTADO') && !s.baseCongelada && (
-                            <button
-                              onClick={() => congelarBase(s.id, s.titulo)}
-                              disabled={congelandoId === s.id}
-                              className="text-xs px-3 py-1.5 rounded bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 transition-colors disabled:opacity-50 flex items-center gap-1"
-                            >
+                            <button onClick={() => congelarBase(s.id, s.titulo)} disabled={congelandoId === s.id}
+                              className="text-xs px-3 py-1.5 rounded bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 transition-colors disabled:opacity-50 flex items-center gap-1">
                               {congelandoId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Lock size={12} />}
                               Congelar
                             </button>
                           )}
-
-                          {/* Participantes */}
-                          <Link
-                            href={`/admin/sorteios/${s.id}/participantes`}
-                            className="p-1.5 rounded text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
-                            title="Participantes"
-                          >
+                          {s.status === 'AGUARDANDO_SORTEIO' && (
+                            <Link href={`/admin/sorteios/${s.id}/realizar-sorteio`}
+                              className="text-xs px-3 py-1.5 rounded bg-[#FFD700]/10 border border-[#FFD700]/30 text-[#FFD700] hover:bg-[#FFD700]/20 transition-colors flex items-center gap-1">
+                              <Trophy size={12} /> Sortear
+                            </Link>
+                          )}
+                          <Link href={`/admin/sorteios/${s.id}/participantes`}
+                            className="p-1.5 rounded text-zinc-400 hover:text-white hover:bg-white/5 transition-colors" title="Participantes">
                             <Users size={15} />
                           </Link>
-
-                          {/* Editar */}
-                          <Link
-                            href={`/admin/sorteios/${s.id}/editar`}
-                            className="p-1.5 rounded text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
-                            title="Editar"
-                          >
+                          <Link href={`/admin/sorteios/${s.id}/editar`}
+                            className="p-1.5 rounded text-zinc-400 hover:text-white hover:bg-white/5 transition-colors" title="Editar">
                             <Pencil size={15} />
                           </Link>
                         </div>
