@@ -1,5 +1,9 @@
+// app/layout.tsx
+// SorteioMax — Layout raiz com SessionProvider do NextAuth
+
 import type { Metadata } from 'next'
 import './globals.css'
+import { Providers } from './providers'
 
 export const metadata: Metadata = {
   title: {
@@ -25,18 +29,10 @@ export const metadata: Metadata = {
     title: 'SorteioMax — Sorteios PIX Premium',
     description: 'Sorteios transparentes, seguros e 100% legais.',
   },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  themeColor: '#0D0D0D',
+  robots: { index: true, follow: true }
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
@@ -48,9 +44,8 @@ export default function RootLayout({
         />
       </head>
       <body>
-        {/* Grain overlay sutil — atmosfera luxury */}
         <div className="noise-overlay" aria-hidden="true" />
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   )
