@@ -233,12 +233,20 @@ export function ModalCheckout({ sorteio, quantidade, onClose }: Props) {
               {/* QR Code */}
               <div className="qrcode-wrap mx-auto mb-4 w-fit">
                 {pagamento.qrCodeImageUrl ? (
-                  <img src={`data:image/png;base64,${pagamento.qrCodeImageUrl}`} alt="QR Code PIX" className="w-48 h-48" />
-                ) : (
-                  <div className="w-48 h-48 flex items-center justify-center bg-gray-100 rounded">
-                    <span className="text-gray-400 text-sm">QR Code</span>
-                  </div>
-                )}
+  <img
+    src={
+      pagamento.qrCodeImageUrl.startsWith('data:')
+        ? pagamento.qrCodeImageUrl
+        : `data:image/png;base64,${pagamento.qrCodeImageUrl}`
+    }
+    alt="QR Code PIX"
+    className="w-48 h-48"
+  />
+) : (
+  <div className="w-48 h-48 flex items-center justify-center bg-gray-100 rounded">
+    <span className="text-gray-400 text-sm">QR Code</span>
+  </div>
+)}
               </div>
 
               <button onClick={copiarPix} className={`w-full py-3 rounded-xl font-bold text-sm transition-all mb-4 ${
