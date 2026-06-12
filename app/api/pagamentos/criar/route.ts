@@ -1,7 +1,6 @@
 // app/api/pagamentos/criar/route.ts
 // SorteioMax — Cria cobrança PIX com guest checkout
 // IMPACTO: CotaService.reservar() → PagamentoService.criarCobrancaPix() → AuditoriaService
-// Se usuário não está logado, cria conta automaticamente (sem senha) usando os dados do form
 
 import { NextRequest, NextResponse } from 'next/server'
 import { criarContainer } from '@/lib/container'
@@ -26,7 +25,6 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? undefined
     const { cota, pagamento, prisma, auditoria } = criarContainer()
 
-    // Verifica se sorteio está ativo e base não congelada
     const sorteio = await prisma.sorteio.findUnique({
       where: { id: sorteioId },
       select: { id: true, status: true, baseCongelada: true, valorCota: true, titulo: true }
@@ -35,19 +33,17 @@ export async function POST(req: NextRequest) {
     if (!sorteio) {
       return NextResponse.json({ error: 'Sorteio não encontrado' }, { status: 404 })
     }
-
     if (sorteio.status !== 'ATIVO') {
       return NextResponse.json({ error: 'Sorteio não está ativo' }, { status: 400 })
     }
-
     if (sorteio.baseCongelada) {
       return NextResponse.json({ error: 'Base do sorteio já foi congelada. Compras encerradas.' }, { status: 400 })
     }
 
-    // Tenta sessão autenticada primeiro
     const session = await getServerSession(authOptions)
 
-    let usuario: { id: string; nome: string; email: string; cpf: string } | null = null
+    type UsuarioBasico = { id: string; nome: string; email: string; cpf: string }
+    let usuario: UsuarioBasico | null = null
 
     if (session?.user?.email) {
       usuario = await prisma.usuario.findUnique({
@@ -56,7 +52,6 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // GUEST CHECKOUT: sem sessão — busca por email ou cria conta automaticamente
     if (!usuario) {
       const emailNormalizado = email.toLowerCase().trim()
       const cpfLimpo = cpf.replace(/\D/g, '')
@@ -69,7 +64,6 @@ export async function POST(req: NextRequest) {
       if (existente) {
         usuario = existente
       } else {
-        // Cria conta automaticamente com senha temporária aleatória (LGPD: aceite implícito na compra)
         const senhaTemporaria = randomBytes(16).toString('hex')
         const senhaHash = await bcrypt.hash(senhaTemporaria, 12)
 
@@ -90,32 +84,35 @@ export async function POST(req: NextRequest) {
         usuario = novoUsuario
 
         await auditoria.registrar({
-          usuarioId: usuario.id,
+          usuarioId: novoUsuario.id,
           acao: 'USUARIO_CRIADO_GUEST_CHECKOUT',
           entidade: 'Usuario',
-          entidadeId: usuario.id,
-          payload: { email: usuario.email, origem: 'checkout_pix' },
+          entidadeId: novoUsuario.id,
+          payload: { email: novoUsuario.email, origem: 'checkout_pix' },
           ipAddress: ip
         })
       }
     }
 
+    if (!usuario) {
+      return NextResponse.json({ error: 'Erro ao processar usuário' }, { status: 500 })
+    }
+    const usuarioFinal: UsuarioBasico = usuario
+
     const valor = Number(sorteio.valorCota) * quantidade
 
-    // Reserva as cotas
     const cotasReservadas = await cota.reservar({
       sorteioId,
-      usuarioId: usuario.id,
+      usuarioId: usuarioFinal.id,
       quantidade,
       ipAddress: ip
     })
 
-    // Cria cobrança PIX
     const resultado = await pagamento.criarCobrancaPix({
-      usuarioId: usuario.id,
-      cpf: usuario.cpf,
-      email: usuario.email,
-      nome: usuario.nome,
+      usuarioId: usuarioFinal.id,
+      cpf: usuarioFinal.cpf,
+      email: usuarioFinal.email,
+      nome: usuarioFinal.nome,
       valor,
       cotaIds: cotasReservadas.map((c: any) => c.id),
       sorteioId,
