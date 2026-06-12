@@ -2,6 +2,7 @@ import { prisma as _prismaType } from '@/lib/prisma'
 type PrismaClient = typeof _prismaType
 // lib/classes/pagamento-service.ts
 // ⚠️ IMPACTO: Alterações aqui afetam CotaService (confirmar) e NotificacaoService (trigger)
+// CORRIGIDO: trata erros da API Asaas e expõe mensagens reais
 
 import { AuditoriaService } from './auditoria-service'
 
@@ -25,8 +26,8 @@ export interface CriarPagamentoDTO {
 
 export interface QrCodeResponse {
   pagamentoId: string
-  qrCodePayload: string   // copia-e-cola
-  qrCodeImageUrl: string  // base64 da imagem
+  qrCodePayload: string
+  qrCodeImageUrl: string
   valor: number
   expiresAt: Date
 }
@@ -41,15 +42,12 @@ export class PagamentoService {
   }
 
   async criarCobrancaPix(dto: CriarPagamentoDTO): Promise<QrCodeResponse> {
-    // Prevenção de fraude: limite de tentativas por CPF/hora
     await this.verificarLimiteTentativas(dto.cpf)
 
     const expiresAt = new Date(Date.now() + EXPIRACAO_MINUTOS * 60 * 1000)
 
-    // 1. Criar/buscar cliente no Asaas
     const clienteAsaasId = await this.obterClienteAsaas(dto)
 
-    // 2. Criar cobrança PIX no Asaas
     const cobranca = await this.criarCobrancaAsaas({
       clienteAsaasId,
       valor: dto.valor,
@@ -57,10 +55,19 @@ export class PagamentoService {
       descricao: `SorteioMax — ${dto.cotaIds.length} cota(s)`,
     })
 
-    // 3. Buscar QR Code
+    if (!cobranca?.id) {
+      console.error('[Asaas] Resposta inválida ao criar cobrança:', JSON.stringify(cobranca))
+      const msg = cobranca?.errors?.[0]?.description ?? 'Erro ao criar cobrança PIX no Asaas'
+      throw new Error(msg)
+    }
+
     const qrCode = await this.buscarQrCode(cobranca.id)
 
-    // 4. Salvar pagamento no banco
+    if (!qrCode.payload) {
+      console.error('[Asaas] QR Code não retornado para cobrança:', cobranca.id, JSON.stringify(qrCode))
+      throw new Error('PIX gerado, mas QR Code ainda não disponível. Tente novamente em alguns segundos.')
+    }
+
     const pagamento = await this.db.pagamento.create({
       data: {
         usuarioId:     dto.usuarioId,
@@ -94,8 +101,6 @@ export class PagamentoService {
     }
   }
 
-  // Chamado pelo webhook do Asaas quando PIX é confirmado
-  // ⚠️ IMPACTO: Aciona CotaService.confirmar() e NotificacaoService
   async processarWebhook(payload: AsaasWebhookPayload): Promise<void> {
     if (payload.event !== 'PAYMENT_RECEIVED') return
 
@@ -108,7 +113,7 @@ export class PagamentoService {
       return
     }
 
-    if (pagamento.status === "PAGO" as any) return // idempotência
+    if (pagamento.status === "PAGO" as any) return
 
     await this.db.pagamento.update({
       where: { id: pagamento.id },
@@ -136,7 +141,6 @@ export class PagamentoService {
 
     if (!pagamento) throw new Error('Pagamento não encontrado.')
 
-    // Expirar automaticamente se vencido
     if (
       pagamento.status === "PENDENTE" as any &&
       pagamento.expiresAt < new Date()
@@ -151,8 +155,6 @@ export class PagamentoService {
     return pagamento.status
   }
 
-  // ─── Métodos privados de integração Asaas ──────────────
-
   private async obterClienteAsaas(dto: CriarPagamentoDTO): Promise<string> {
     const res = await fetch(`${ASAAS_BASE_URL}/customers?cpfCnpj=${dto.cpf}`, {
       headers: this.headers(),
@@ -161,7 +163,6 @@ export class PagamentoService {
 
     if (data.data?.length > 0) return data.data[0].id
 
-    // Criar novo cliente
     const criar = await fetch(`${ASAAS_BASE_URL}/customers`, {
       method: 'POST',
       headers: this.headers(),
@@ -172,6 +173,13 @@ export class PagamentoService {
       }),
     })
     const cliente = await criar.json()
+
+    if (!cliente?.id) {
+      console.error('[Asaas] Erro ao criar cliente:', JSON.stringify(cliente))
+      const msg = cliente?.errors?.[0]?.description ?? 'Erro ao criar cliente no Asaas'
+      throw new Error(msg)
+    }
+
     return cliente.id
   }
 
@@ -201,12 +209,16 @@ export class PagamentoService {
       { headers: this.headers() }
     )
     const data = await res.json()
+
+    if (!data.payload) {
+      console.error('[Asaas] pixQrCode resposta:', JSON.stringify(data))
+    }
+
     return { payload: data.payload, imageUrl: data.encodedImage }
   }
 
   private async verificarLimiteTentativas(cpf: string): Promise<void> {
     const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000)
-    // Em produção: buscar por CPF criptografado
     const count = await this.db.pagamento.count({
       where: {
         criadoEm: { gte: umaHoraAtras },
@@ -238,4 +250,3 @@ export interface AsaasWebhookPayload {
     paymentDate: string
   }
 }
-
