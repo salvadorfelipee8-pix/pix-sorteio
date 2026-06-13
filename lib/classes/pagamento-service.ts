@@ -15,7 +15,8 @@ const EXPIRACAO_MINUTOS   = 15
 
 export interface CriarPagamentoDTO {
   usuarioId: string
-  cpf: string
+  cpf: string      // CPF como salvo no banco (criptografado para usuários cadastrados)
+  cpfRaw: string   // CPF puro para envio ao Asaas
   email: string
   nome: string
   valor: number
@@ -42,7 +43,7 @@ export class PagamentoService {
   }
 
   async criarCobrancaPix(dto: CriarPagamentoDTO): Promise<QrCodeResponse> {
-    await this.verificarLimiteTentativas(dto.cpf)
+    await this.verificarLimiteTentativas(dto.usuarioId)
 
     const expiresAt = new Date(Date.now() + EXPIRACAO_MINUTOS * 60 * 1000)
 
@@ -156,7 +157,7 @@ export class PagamentoService {
   }
 
   private async obterClienteAsaas(dto: CriarPagamentoDTO): Promise<string> {
-    const res = await fetch(`${ASAAS_BASE_URL}/customers?cpfCnpj=${dto.cpf}`, {
+    const res = await fetch(`${ASAAS_BASE_URL}/customers?cpfCnpj=${dto.cpfRaw}`, {
       headers: this.headers(),
     })
     const data = await res.json()
@@ -168,7 +169,7 @@ export class PagamentoService {
       headers: this.headers(),
       body: JSON.stringify({
         name:    dto.nome,
-        cpfCnpj: dto.cpf,
+        cpfCnpj: dto.cpfRaw,
         email:   dto.email,
       }),
     })
@@ -217,19 +218,17 @@ export class PagamentoService {
     return { payload: data.payload, imageUrl: data.encodedImage }
   }
 
-  private async verificarLimiteTentativas(cpf: string): Promise<void> {
+  private async verificarLimiteTentativas(usuarioId: string): Promise<void> {
     const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000)
     const count = await this.db.pagamento.count({
       where: {
+        usuarioId,
         criadoEm: { gte: umaHoraAtras },
-        usuario: { cpf },
       },
     })
 
     if (count >= MAX_TENTATIVAS_CPF) {
-      throw new Error(
-        'Limite de tentativas de pagamento atingido. Aguarde 1 hora.'
-      )
+      throw new Error('Limite de tentativas de pagamento atingido. Aguarde 1 hora.')
     }
   }
 

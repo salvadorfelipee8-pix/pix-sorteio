@@ -51,7 +51,7 @@ export class AuthService {
       where: {
         OR: [
           { email: dto.email.toLowerCase() },
-          { cpf: this.criptografar(cpfLimpo) },
+          { cpf: this.criptografarCpf(cpfLimpo) },
         ],
       },
     })
@@ -66,7 +66,7 @@ export class AuthService {
       data: {
         nome:          dto.nome.trim(),
         email:         dto.email.toLowerCase().trim(),
-        cpf:           this.criptografar(cpfLimpo),
+        cpf:           this.criptografarCpf(cpfLimpo),
         telefone:      dto.telefone,
         dataNascimento: dto.dataNascimento,
         senhaHash,
@@ -149,7 +149,7 @@ export class AuthService {
   }
 
   // AES-256 para CPF em repouso (LGPD)
-  private criptografar(texto: string): string {
+  public criptografarCpf(texto: string): string {
     const iv = randomBytes(16)
     const key = Buffer.from(ENCRYPTION_KEY, 'hex')
     const cipher = createCipheriv('aes-256-cbc', key, iv)

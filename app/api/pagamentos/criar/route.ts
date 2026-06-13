@@ -18,12 +18,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
     }
 
-    if (!nome || !email || !cpf) {
-      return NextResponse.json({ error: 'Nome, email e CPF são obrigatórios' }, { status: 400 })
-    }
-
     const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? undefined
-    const { cota, pagamento, prisma, auditoria } = criarContainer()
+    const { cota, pagamento, prisma, auditoria, auth } = criarContainer()
 
     const sorteio = await prisma.sorteio.findUnique({
       where: { id: sorteioId },
@@ -44,17 +40,29 @@ export async function POST(req: NextRequest) {
 
     type UsuarioBasico = { id: string; nome: string; email: string; cpf: string }
     let usuario: UsuarioBasico | null = null
+    let cpfRaw: string = cpf ? cpf.replace(/\D/g, '') : ''
 
+    // ── Usuário logado ──────────────────────────────────────────
     if (session?.user?.email) {
-      usuario = await prisma.usuario.findUnique({
+      const dbUser = await prisma.usuario.findUnique({
         where: { email: session.user.email },
         select: { id: true, nome: true, email: true, cpf: true }
       })
+      if (dbUser) {
+        usuario = dbUser
+        // Detecta formato: criptografado (iv:encrypted) ou puro (usuário guest antigo)
+        cpfRaw = dbUser.cpf.includes(':') ? auth.descriptografar(dbUser.cpf) : dbUser.cpf
+      }
     }
 
+    // ── Guest checkout ──────────────────────────────────────────
     if (!usuario) {
+      if (!nome || !email || !cpf) {
+        return NextResponse.json({ error: 'Nome, email e CPF são obrigatórios' }, { status: 400 })
+      }
+
       const emailNormalizado = email.toLowerCase().trim()
-      const cpfLimpo = cpf.replace(/\D/g, '')
+      cpfRaw = cpf.replace(/\D/g, '')
 
       const existente = await prisma.usuario.findUnique({
         where: { email: emailNormalizado },
@@ -63,15 +71,19 @@ export async function POST(req: NextRequest) {
 
       if (existente) {
         usuario = existente
+        // Detecta se CPF no banco está criptografado (formato iv:encrypted) ou em texto puro (guest antigo)
+        cpfRaw = existente.cpf.includes(':') ? auth.descriptografar(existente.cpf) : existente.cpf
       } else {
+        // Cria conta automaticamente — CPF criptografado para conformidade LGPD
         const senhaTemporaria = randomBytes(16).toString('hex')
         const senhaHash = await bcrypt.hash(senhaTemporaria, 12)
+        const cpfCriptografado = auth.criptografarCpf(cpfRaw)
 
         const novoUsuario = await prisma.usuario.create({
           data: {
             nome: nome.trim(),
             email: emailNormalizado,
-            cpf: cpfLimpo,
+            cpf: cpfCriptografado,
             telefone: telefone ?? undefined,
             senhaHash,
             role: 'PARTICIPANTE' as any,
@@ -97,8 +109,8 @@ export async function POST(req: NextRequest) {
     if (!usuario) {
       return NextResponse.json({ error: 'Erro ao processar usuário' }, { status: 500 })
     }
-    const usuarioFinal: UsuarioBasico = usuario
 
+    const usuarioFinal: UsuarioBasico = usuario
     const valor = Number(sorteio.valorCota) * quantidade
 
     const cotasReservadas = await cota.reservar({
@@ -111,6 +123,7 @@ export async function POST(req: NextRequest) {
     const resultado = await pagamento.criarCobrancaPix({
       usuarioId: usuarioFinal.id,
       cpf: usuarioFinal.cpf,
+      cpfRaw,
       email: usuarioFinal.email,
       nome: usuarioFinal.nome,
       valor,

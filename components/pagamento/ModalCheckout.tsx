@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 
 interface Sorteio {
   id: string
@@ -15,7 +16,7 @@ interface Props {
   onClose: () => void
 }
 
-type Step = 'cadastro' | 'pix' | 'confirmado'
+type Step = 'dados' | 'pix' | 'confirmado'
 
 interface FormData {
   nome: string
@@ -33,16 +34,30 @@ interface PagamentoData {
 }
 
 export function ModalCheckout({ sorteio, quantidade, onClose }: Props) {
-  const [step, setStep]           = useState<Step>('cadastro')
+  const { data: session, status: sessionStatus } = useSession()
+  const isLogado = sessionStatus === 'authenticated' && !!session?.user
+
+  const [step, setStep]           = useState<Step>('dados')
   const [form, setForm]           = useState<FormData>({ nome: '', email: '', cpf: '', telefone: '' })
-  const [errors, setErrors]       = useState<Partial<FormData>>({})
+  const [errors, setErrors]       = useState<Partial<FormData & { geral: string }>>({})
   const [loading, setLoading]     = useState(false)
   const [pagamento, setPagamento] = useState<PagamentoData | null>(null)
   const [copiado, setCopiado]     = useState(false)
-  const [tempo, setTempo]         = useState(900) // 15 min em segundos
+  const [tempo, setTempo]         = useState(900)
   const [numerosCotas, setNumerosCotas] = useState<number[]>([])
 
   const valorTotal = (Number(sorteio.valorCota) * quantidade).toFixed(2)
+
+  // Pré-preenche o formulário com dados da sessão
+  useEffect(() => {
+    if (isLogado && session?.user) {
+      setForm(f => ({
+        ...f,
+        nome:  session.user?.name  ?? f.nome,
+        email: session.user?.email ?? f.email,
+      }))
+    }
+  }, [isLogado, session])
 
   // Timer de expiração do PIX
   useEffect(() => {
@@ -83,35 +98,44 @@ export function ModalCheckout({ sorteio, quantidade, onClose }: Props) {
     v.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2').slice(0, 14)
 
   const validarForm = () => {
-    const e: Partial<FormData> = {}
+    const e: Partial<FormData & { geral: string }> = {}
     if (!form.nome.trim() || form.nome.trim().split(' ').length < 2) e.nome = 'Nome completo obrigatório'
     if (!form.email.includes('@')) e.email = 'Email inválido'
-    const cpf = form.cpf.replace(/\D/g, '')
-    if (cpf.length !== 11) e.cpf = 'CPF inválido'
+    const cpfLimpo = form.cpf.replace(/\D/g, '')
+    if (cpfLimpo.length !== 11) e.cpf = 'CPF inválido'
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
   const handleSubmit = async () => {
-    if (!validarForm()) return
+    // Para usuários logados, não precisa validar o formulário — o backend usa os dados da sessão
+    if (!isLogado && !validarForm()) return
+
     setLoading(true)
+    setErrors({})
     try {
+      const body = isLogado
+        ? { sorteioId: sorteio.id, quantidade, nome: form.nome, email: form.email, cpf: '' }
+        : {
+            sorteioId: sorteio.id,
+            quantidade,
+            nome: form.nome,
+            email: form.email,
+            cpf: form.cpf.replace(/\D/g, ''),
+            telefone: form.telefone,
+          }
+
       const res = await fetch('/api/pagamentos/criar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sorteioId: sorteio.id,
-          quantidade,
-          ...form,
-          cpf: form.cpf.replace(/\D/g, ''),
-        }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setPagamento(data)
       setStep('pix')
     } catch (err: any) {
-      setErrors({ email: err.message ?? 'Erro ao gerar cobrança. Tente novamente.' })
+      setErrors({ geral: err.message ?? 'Erro ao gerar cobrança. Tente novamente.' })
     } finally {
       setLoading(false)
     }
@@ -138,9 +162,9 @@ export function ModalCheckout({ sorteio, quantidade, onClose }: Props) {
         <div className="flex items-center justify-between p-5 border-b border-[rgba(255,215,0,0.1)]">
           <div>
             <h3 className="font-display font-bold text-white text-lg">
-              {step === 'cadastro' && 'Seus dados'}
+              {step === 'dados' && 'Confirmar compra'}
               {step === 'pix' && 'Pague via PIX'}
-              {step === 'confirmado' && '🎉 Pagamento confirmado!'}
+              {step === 'confirmado' && 'Pagamento confirmado!'}
             </h3>
             <p className="text-text-muted text-xs mt-0.5">
               {step !== 'confirmado' && `${quantidade} cota${quantidade > 1 ? 's' : ''} · R$ ${valorTotal}`}
@@ -152,17 +176,17 @@ export function ModalCheckout({ sorteio, quantidade, onClose }: Props) {
         {/* Steps indicator */}
         {step !== 'confirmado' && (
           <div className="flex px-5 py-3 gap-2">
-            {(['cadastro', 'pix'] as Step[]).map((s, i) => (
+            {(['dados', 'pix'] as Step[]).map((s, i) => (
               <div key={s} className="flex items-center gap-2 flex-1">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                   step === s ? 'bg-gold-gradient text-black' :
-                  (step === 'pix' && s === 'cadastro') ? 'bg-mint-DEFAULT text-black' :
+                  (step === 'pix' && s === 'dados') ? 'bg-mint-DEFAULT text-black' :
                   'bg-[rgba(255,255,255,0.08)] text-text-muted'
                 }`}>
-                  {step === 'pix' && s === 'cadastro' ? '✓' : i + 1}
+                  {step === 'pix' && s === 'dados' ? '✓' : i + 1}
                 </div>
                 <span className={`text-xs ${step === s ? 'text-gold-DEFAULT' : 'text-text-muted'}`}>
-                  {s === 'cadastro' ? 'Dados' : 'PIX'}
+                  {s === 'dados' ? 'Dados' : 'PIX'}
                 </span>
                 {i === 0 && <div className="flex-1 h-px bg-[rgba(255,255,255,0.08)]" />}
               </div>
@@ -172,47 +196,95 @@ export function ModalCheckout({ sorteio, quantidade, onClose }: Props) {
 
         <div className="p-5">
 
-          {/* ── STEP 1: CADASTRO ── */}
-          {step === 'cadastro' && (
+          {/* ── STEP 1: DADOS ── */}
+          {step === 'dados' && (
             <div className="space-y-4">
-              <div>
-                <label className="text-text-muted text-xs uppercase tracking-wider mb-1.5 block">Nome completo</label>
-                <input className={`input-field ${errors.nome ? 'border-danger' : ''}`}
-                  placeholder="João da Silva" value={form.nome}
-                  onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
-                {errors.nome && <p className="text-danger text-xs mt-1">{errors.nome}</p>}
+
+              {/* Usuário logado — mostra resumo da conta */}
+              {isLogado ? (
+                <div className="glass rounded-xl p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gold-glow flex items-center justify-center text-lg font-bold text-gold-DEFAULT shrink-0">
+                    {(session?.user?.name ?? '?')[0].toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-white font-semibold text-sm truncate">{session?.user?.name}</p>
+                    <p className="text-text-muted text-xs truncate">{session?.user?.email}</p>
+                  </div>
+                  <span className="ml-auto text-xs bg-mint-glow text-mint-DEFAULT border border-[rgba(0,255,163,0.2)] px-2 py-0.5 rounded-full shrink-0">Logado</span>
+                </div>
+              ) : (
+                /* Guest — formulário completo */
+                <>
+                  <div>
+                    <label className="text-text-muted text-xs uppercase tracking-wider mb-1.5 block">Nome completo</label>
+                    <input className={`input-field ${errors.nome ? 'border-danger' : ''}`}
+                      placeholder="João da Silva" value={form.nome}
+                      onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
+                    {errors.nome && <p className="text-danger text-xs mt-1">{errors.nome}</p>}
+                  </div>
+
+                  <div>
+                    <label className="text-text-muted text-xs uppercase tracking-wider mb-1.5 block">Email</label>
+                    <input className={`input-field ${errors.email ? 'border-danger' : ''}`}
+                      type="email" placeholder="joao@email.com" value={form.email}
+                      onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                    {errors.email && <p className="text-danger text-xs mt-1">{errors.email}</p>}
+                  </div>
+
+                  <div>
+                    <label className="text-text-muted text-xs uppercase tracking-wider mb-1.5 block">CPF</label>
+                    <input className={`input-field ${errors.cpf ? 'border-danger' : ''}`}
+                      placeholder="000.000.000-00" value={form.cpf}
+                      onChange={e => setForm(f => ({ ...f, cpf: formatarCPF(e.target.value) }))} />
+                    {errors.cpf && <p className="text-danger text-xs mt-1">{errors.cpf}</p>}
+                  </div>
+
+                  <div>
+                    <label className="text-text-muted text-xs uppercase tracking-wider mb-1.5 block">WhatsApp (opcional)</label>
+                    <input className="input-field"
+                      placeholder="(11) 99999-9999" value={form.telefone}
+                      onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} />
+                  </div>
+                </>
+              )}
+
+              {/* Resumo do pedido */}
+              <div className="glass rounded-xl p-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-text-muted text-xs">{sorteio.titulo}</p>
+                    <p className="text-white text-sm font-medium mt-0.5">{quantidade} cota{quantidade > 1 ? 's' : ''}</p>
+                  </div>
+                  <p className="font-display font-bold text-xl text-gold-DEFAULT">
+                    R$ {valorTotal}
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <label className="text-text-muted text-xs uppercase tracking-wider mb-1.5 block">Email</label>
-                <input className={`input-field ${errors.email ? 'border-danger' : ''}`}
-                  type="email" placeholder="joao@email.com" value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-                {errors.email && <p className="text-danger text-xs mt-1">{errors.email}</p>}
-              </div>
+              {errors.geral && (
+                <div className="bg-[rgba(255,77,77,0.1)] border border-[rgba(255,77,77,0.25)] rounded-xl p-3">
+                  <p className="text-danger text-sm">{errors.geral}</p>
+                </div>
+              )}
 
-              <div>
-                <label className="text-text-muted text-xs uppercase tracking-wider mb-1.5 block">CPF</label>
-                <input className={`input-field ${errors.cpf ? 'border-danger' : ''}`}
-                  placeholder="000.000.000-00" value={form.cpf}
-                  onChange={e => setForm(f => ({ ...f, cpf: formatarCPF(e.target.value) }))} />
-                {errors.cpf && <p className="text-danger text-xs mt-1">{errors.cpf}</p>}
-              </div>
+              {!isLogado && (
+                <p className="text-text-muted text-xs flex items-center gap-1.5">
+                  <span>🔒</span>
+                  Seus dados são protegidos pela LGPD e nunca serão compartilhados.
+                </p>
+              )}
 
-              <div>
-                <label className="text-text-muted text-xs uppercase tracking-wider mb-1.5 block">WhatsApp (opcional)</label>
-                <input className="input-field"
-                  placeholder="(11) 99999-9999" value={form.telefone}
-                  onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} />
-              </div>
-
-              <p className="text-text-muted text-xs">
-                🔒 Seus dados são protegidos pela LGPD e nunca serão compartilhados.
-              </p>
-
-              <button onClick={handleSubmit} disabled={loading} className="btn-primary w-full py-4 text-base">
+              <button onClick={handleSubmit} disabled={loading || sessionStatus === 'loading'} className="btn-primary w-full py-4 text-base">
                 {loading ? 'Gerando cobrança...' : `Gerar PIX · R$ ${valorTotal}`}
               </button>
+
+              {!isLogado && (
+                <p className="text-center text-text-muted text-xs">
+                  Já tem conta?{' '}
+                  <a href="/entrar" className="text-gold-DEFAULT hover:underline">Entrar</a>
+                  {' '}para comprar mais rápido
+                </p>
+              )}
             </div>
           )}
 
@@ -223,30 +295,27 @@ export function ModalCheckout({ sorteio, quantidade, onClose }: Props) {
                 tempo < 120 ? 'bg-[rgba(255,77,77,0.1)] text-danger border border-[rgba(255,77,77,0.2)]' :
                 'bg-mint-glow text-mint-DEFAULT border border-[rgba(0,255,163,0.2)]'
               } text-sm font-mono font-bold`}>
-                ⏱ {formatarTempo(tempo)}
+                {formatarTempo(tempo)}
               </div>
 
               <p className="text-text-secondary text-sm mb-4">
                 Escaneie o QR Code ou copie o código PIX
               </p>
 
-              {/* QR Code */}
               <div className="qrcode-wrap mx-auto mb-4 w-fit">
                 {pagamento.qrCodeImageUrl ? (
-  <img
-    src={
-      pagamento.qrCodeImageUrl.startsWith('data:')
-        ? pagamento.qrCodeImageUrl
-        : `data:image/png;base64,${pagamento.qrCodeImageUrl}`
-    }
-    alt="QR Code PIX"
-    className="w-48 h-48"
-  />
-) : (
-  <div className="w-48 h-48 flex items-center justify-center bg-gray-100 rounded">
-    <span className="text-gray-400 text-sm">QR Code</span>
-  </div>
-)}
+                  <img
+                    src={pagamento.qrCodeImageUrl.startsWith('data:')
+                      ? pagamento.qrCodeImageUrl
+                      : `data:image/png;base64,${pagamento.qrCodeImageUrl}`}
+                    alt="QR Code PIX"
+                    className="w-48 h-48"
+                  />
+                ) : (
+                  <div className="w-48 h-48 flex items-center justify-center bg-gray-100 rounded">
+                    <span className="text-gray-400 text-sm">QR Code</span>
+                  </div>
+                )}
               </div>
 
               <button onClick={copiarPix} className={`w-full py-3 rounded-xl font-bold text-sm transition-all mb-4 ${
@@ -254,7 +323,7 @@ export function ModalCheckout({ sorteio, quantidade, onClose }: Props) {
                   ? 'bg-mint-glow border border-[rgba(0,255,163,0.3)] text-mint-DEFAULT'
                   : 'btn-primary'
               }`}>
-                {copiado ? '✓ Código copiado!' : '📋 Copiar código PIX'}
+                {copiado ? '✓ Código copiado!' : 'Copiar código PIX'}
               </button>
 
               <div className="glass rounded-xl p-3 text-left">
@@ -278,7 +347,8 @@ export function ModalCheckout({ sorteio, quantidade, onClose }: Props) {
                 Cotas garantidas!
               </h3>
               <p className="text-text-secondary mb-6">
-                Você receberá os detalhes no email <strong className="text-white">{form.email}</strong>
+                Você receberá os detalhes no email{' '}
+                <strong className="text-white">{session?.user?.email ?? form.email}</strong>
               </p>
 
               {numerosCotas.length > 0 && (
@@ -302,6 +372,15 @@ export function ModalCheckout({ sorteio, quantidade, onClose }: Props) {
                   {Number(sorteio.premioValor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
                 </p>
               </div>
+
+              {!isLogado && (
+                <div className="glass rounded-xl p-4 mb-4 text-left border border-[rgba(255,215,0,0.15)]">
+                  <p className="text-gold-DEFAULT text-xs font-semibold mb-1">Conta criada automaticamente</p>
+                  <p className="text-text-muted text-xs">
+                    Criamos uma conta para {form.email}. Você receberá um email para definir sua senha e acompanhar seus sorteios.
+                  </p>
+                </div>
+              )}
 
               <button onClick={onClose} className="btn-primary w-full py-3">
                 Fechar
