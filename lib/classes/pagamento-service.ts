@@ -83,6 +83,12 @@ export class PagamentoService {
       },
     })
 
+    // Liga as cotas reservadas ao pagamento para que o webhook consiga confirmá-las
+    await this.db.cota.updateMany({
+      where: { id: { in: dto.cotaIds } },
+      data:  { pagamentoId: pagamento.id },
+    })
+
     await this.auditoria.registrar({
       usuarioId:  dto.usuarioId,
       sorteioId:  dto.sorteioId,

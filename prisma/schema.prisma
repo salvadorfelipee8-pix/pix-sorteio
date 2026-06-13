@@ -102,7 +102,7 @@ model Cota {
   status      StatusCota @default(DISPONIVEL)
   reservadaEm DateTime?
   reservaExpiraEm DateTime?
-  pagamentoId String?    @unique
+  pagamentoId String?
   criadoEm   DateTime   @default(now())
 
   sorteio    Sorteio    @relation(fields: [sorteioId], references: [id])
@@ -138,7 +138,7 @@ model Pagamento {
   atualizadoEm    DateTime        @updatedAt
 
   usuario         Usuario         @relation(fields: [usuarioId], references: [id])
-  cota            Cota?
+  cotas           Cota[]
 
   @@map("pagamentos")
 }

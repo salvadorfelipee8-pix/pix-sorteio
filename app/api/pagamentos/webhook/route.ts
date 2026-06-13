@@ -27,11 +27,11 @@ export async function POST(req: NextRequest) {
     // 1. Atualizar status do pagamento
     await pagamento.processarWebhook(payload)
 
-    // 2. Buscar pagamento com dados do usuário e sorteio
+    // 2. Buscar pagamento com cotas e dados do usuário
     const pgRecord = await prisma.pagamento.findUnique({
       where: { provedorId: payload.payment.id },
       include: {
-        cota: {
+        cotas: {
           include: {
             sorteio: { select: { id: true, titulo: true, slug: true, dataApuracao: true } }
           }
@@ -45,12 +45,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true })
     }
 
-    // 3. Confirmar cota (idempotente)
-    if (pgRecord.cota && pgRecord.status === 'PAGO' as any) {
-      await cota.confirmar([pgRecord.cota.id], pgRecord.id)
+    // 3. Confirmar cotas (idempotente)
+    if (pgRecord.cotas.length > 0 && pgRecord.status === 'PAGO' as any) {
+      const cotaIds = pgRecord.cotas.map((c: any) => c.id)
+      await cota.confirmar(cotaIds, pgRecord.id)
 
-      // 4. Buscar todos os números de cotas do usuário neste sorteio
-      const sorteioId = pgRecord.cota.sorteioId
+      // 4. Buscar todos os números de cotas do usuário neste sorteio após confirmação
+      const sorteioId = pgRecord.cotas[0].sorteioId
       const cotasUsuario = await prisma.cota.findMany({
         where: {
           usuarioId: pgRecord.usuarioId,
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
         orderBy: { numero: 'asc' }
       })
 
-      const sorteio = pgRecord.cota.sorteio
+      const sorteio = pgRecord.cotas[0].sorteio
 
       // 5. Enviar email de confirmação
       if (pgRecord.usuario?.email && sorteio) {

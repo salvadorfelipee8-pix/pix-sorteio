@@ -1,6 +1,5 @@
 // app/api/pagamentos/[id]/status/route.ts
 // SorteioMax — Polling de status do pagamento + retorna números das cotas confirmadas
-// CORRIGIDO: agora inclui numerosCotas na resposta para o ModalCheckout
 
 import { NextRequest, NextResponse } from 'next/server'
 import { criarContainer } from '@/lib/container'
@@ -18,44 +17,44 @@ export async function GET(
     if (status === 'PAGO') {
       const cotasPagas = await prisma.cota.findMany({
         where: {
-          pagamento: { id: params.id },
+          pagamentoId: params.id,
           status: 'PAGA' as any
         },
         select: { numero: true },
         orderBy: { numero: 'asc' }
       })
 
-      // Fallback: busca pelo pagamentoId diretamente
-      if (cotasPagas.length === 0) {
-        const pg = await prisma.pagamento.findUnique({
-          where: { id: params.id },
-          include: {
-            cota: { select: { numero: true, sorteioId: true, usuarioId: true } }
-          }
+      if (cotasPagas.length > 0) {
+        return NextResponse.json({
+          status,
+          numerosCotas: cotasPagas.map((c: any) => c.numero)
         })
-
-        if (pg?.cota) {
-          // Busca todas as cotas pagas do usuário neste sorteio
-          const todasCotas = await prisma.cota.findMany({
-            where: {
-              usuarioId: pg.cota.usuarioId ?? undefined,
-              sorteioId: pg.cota.sorteioId,
-              status: 'PAGA' as any
-            },
-            select: { numero: true },
-            orderBy: { numero: 'asc' }
-          })
-          return NextResponse.json({
-            status,
-            numerosCotas: todasCotas.map((c: any) => c.numero)
-          })
-        }
       }
 
-      return NextResponse.json({
-        status,
-        numerosCotas: cotasPagas.map((c: any) => c.numero)
+      // Fallback: busca pelo usuário + sorteio via cotas ligadas ao pagamento (qualquer status)
+      const pg = await prisma.pagamento.findUnique({
+        where: { id: params.id },
+        include: {
+          cotas: { select: { numero: true, sorteioId: true, usuarioId: true } }
+        }
       })
+
+      if (pg && pg.cotas.length > 0) {
+        const primeira = pg.cotas[0]
+        const todasCotas = await prisma.cota.findMany({
+          where: {
+            usuarioId: primeira.usuarioId ?? undefined,
+            sorteioId: primeira.sorteioId,
+            status: 'PAGA' as any
+          },
+          select: { numero: true },
+          orderBy: { numero: 'asc' }
+        })
+        return NextResponse.json({
+          status,
+          numerosCotas: todasCotas.map((c: any) => c.numero)
+        })
+      }
     }
 
     return NextResponse.json({ status, numerosCotas: [] })
