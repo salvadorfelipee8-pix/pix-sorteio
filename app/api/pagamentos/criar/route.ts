@@ -120,17 +120,24 @@ export async function POST(req: NextRequest) {
       ipAddress: ip
     })
 
-    const resultado = await pagamento.criarCobrancaPix({
-      usuarioId: usuarioFinal.id,
-      cpf: usuarioFinal.cpf,
-      cpfRaw,
-      email: usuarioFinal.email,
-      nome: usuarioFinal.nome,
-      valor,
-      cotaIds: cotasReservadas.map((c: any) => c.id),
-      sorteioId,
-      ipAddress: ip
-    })
+    let resultado
+    try {
+      resultado = await pagamento.criarCobrancaPix({
+        usuarioId: usuarioFinal.id,
+        cpf: usuarioFinal.cpf,
+        cpfRaw,
+        email: usuarioFinal.email,
+        nome: usuarioFinal.nome,
+        valor,
+        cotaIds: cotasReservadas.map((c: any) => c.id),
+        sorteioId,
+        ipAddress: ip
+      })
+    } catch (pagErr: any) {
+      // Libera as cotas reservadas se a criação do pagamento falhar
+      await cota.liberarReserva(cotasReservadas.map((c: any) => c.id)).catch(() => {})
+      throw pagErr
+    }
 
     return NextResponse.json({
       pagamentoId: resultado.pagamentoId,

@@ -1,5 +1,5 @@
 // app/api/minha-conta/cotas/route.ts
-// SorteioMax — Cotas compradas pelo usuário logado
+// SorteioMax — Cotas pagas pelo usuário logado
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest) {
 
     const usuario = await prisma.usuario.findUnique({
       where: { email: session.user.email },
-      select: { id: true }
+      select: { id: true, nome: true, email: true }
     })
 
     if (!usuario) {
@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest) {
     const cotas = await prisma.cota.findMany({
       where: {
         usuarioId: usuario.id,
-        status: { in: ['PAGA', 'RESERVADA'] as any[] }
+        status: 'PAGA' as any
       },
       include: {
         sorteio: {
@@ -39,6 +39,7 @@ export async function GET(_req: NextRequest) {
             dataApuracao: true,
             premioDescricao: true,
             premioValor: true,
+            valorCota: true,
             imagemUrl: true,
             cotaVencedora: true,
             loteriaResultado: true,
@@ -46,7 +47,7 @@ export async function GET(_req: NextRequest) {
           }
         },
         pagamento: {
-          select: { valor: true, status: true, paidAt: true }
+          select: { id: true, valor: true, status: true, paidAt: true }
         }
       },
       orderBy: { criadoEm: 'desc' }
@@ -60,7 +61,8 @@ export async function GET(_req: NextRequest) {
         porSorteio.set(sid, {
           sorteio: {
             ...c.sorteio,
-            premioValor: Number(c.sorteio?.premioValor ?? 0)
+            premioValor: Number(c.sorteio?.premioValor ?? 0),
+            valorCota: Number(c.sorteio?.valorCota ?? 0),
           },
           cotas: []
         })
@@ -75,7 +77,10 @@ export async function GET(_req: NextRequest) {
       })
     }
 
-    return NextResponse.json(Array.from(porSorteio.values()))
+    return NextResponse.json({
+      usuario: { nome: usuario.nome, email: usuario.email },
+      grupos: Array.from(porSorteio.values())
+    })
   } catch (err: any) {
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }

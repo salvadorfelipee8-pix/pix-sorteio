@@ -204,18 +204,27 @@ export class PagamentoService {
     return res.json()
   }
 
-  private async buscarQrCode(cobrancaId: string) {
-    const res = await fetch(
-      `${ASAAS_BASE_URL}/payments/${cobrancaId}/pixQrCode`,
-      { headers: this.headers() }
-    )
-    const data = await res.json()
+  private async buscarQrCode(cobrancaId: string): Promise<{ payload: string; imageUrl: string }> {
+    // O Asaas sandbox pode demorar alguns segundos para gerar o QR Code
+    for (let tentativa = 1; tentativa <= 6; tentativa++) {
+      const res = await fetch(
+        `${ASAAS_BASE_URL}/payments/${cobrancaId}/pixQrCode`,
+        { headers: this.headers() }
+      )
+      const data = await res.json()
 
-    if (!data.payload) {
-      console.error('[Asaas] pixQrCode resposta:', JSON.stringify(data))
+      if (data.payload) {
+        return { payload: data.payload, imageUrl: data.encodedImage ?? '' }
+      }
+
+      if (tentativa < 6) {
+        await new Promise(r => setTimeout(r, 1500))
+      } else {
+        console.error('[Asaas] pixQrCode após 6 tentativas:', JSON.stringify(data))
+      }
     }
 
-    return { payload: data.payload, imageUrl: data.encodedImage }
+    throw new Error('QR Code não disponível. Aguarde alguns segundos e tente novamente.')
   }
 
   private async verificarLimiteTentativas(usuarioId: string): Promise<void> {
